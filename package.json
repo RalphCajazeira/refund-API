@@ -2,9 +2,9 @@
   "name": "refund-api",
   "version": "1.0.0",
   "description": "API de solicitações de reembolso",
-  "main": "index.js",
+  "main": "src/server.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/server.ts"
   },
   "author": "RalphMTK",
   "license": "ISC",

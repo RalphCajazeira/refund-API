@@ -1,5 +1,5 @@
 import { Request, Response } from "express"
-import { email, z } from "zod"
+import { z } from "zod"
 
 class UsersController {
   async create(request: Request, response: Response) {

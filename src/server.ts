@@ -1,4 +1,9 @@
 import { app } from "@/app"
+import "dotenv/config" // Por segurança, atualmente meu tsx ja inclui essa importação globalmente
+
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET não definido")
+}
 
 const PORT = process.env.PORT || 3333
 

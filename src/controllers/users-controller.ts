@@ -1,6 +1,9 @@
+import type { Request, Response } from "express"
+
 import { prisma } from "@/database/prisma"
+import { AppError } from "@/utils/AppError"
 import { UserRole } from "@prisma/client"
-import { Request, Response } from "express"
+import { hash } from "bcrypt"
 import { z } from "zod"
 
 const userPublicSelect = {
@@ -32,11 +35,14 @@ class UsersController {
     })
 
     if (userWithSameEmail) {
-      return response.status(409).json({ message: "Email já cadastrado" })
+      throw new AppError("Já existe um usuário com esse email", 409)
     }
 
+    const hashedPassword = await hash(password, 8)
+
     const user = await prisma.user.create({
-      data: { name, email, password, role },
+      data: { name, email, password: hashedPassword, role },
+      select: userPublicSelect,
     })
 
     response.json({ user })
@@ -65,8 +71,7 @@ class UsersController {
     if (user) {
       return response.json(user)
     }
-
-    return response.status(404).json({ message: "Usuário não encontrado" })
+    throw new AppError("Usuário não encontrado", 404)
   }
 
   async remove(request: Request, response: Response) {
@@ -106,7 +111,7 @@ class UsersController {
     })
 
     if (!user) {
-      return response.status(404).json({ message: "Usuário não encontrado" })
+      throw new AppError("Usuário não encontrado", 404)
     }
 
     // 2️⃣ Se email mudou, valida duplicidade (ignorando ele mesmo)
@@ -116,7 +121,7 @@ class UsersController {
       })
 
       if (emailInUse) {
-        return response.status(409).json({ message: "Email já está em uso" })
+        throw new AppError("Email já cadastrado", 409)
       }
     }
 

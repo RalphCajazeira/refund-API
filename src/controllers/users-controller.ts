@@ -2,9 +2,11 @@ import type { Request, Response } from "express"
 
 import { prisma } from "@/database/prisma"
 import { AppError } from "@/utils/AppError"
+import { requireAuth, requireManager, requireSelfOrManager } from "@/utils/auth"
 import { UserRole } from "@prisma/client"
-import { hash } from "bcrypt"
+import { compare, hash } from "bcrypt"
 import { z } from "zod"
+import { parseParamId } from "@/utils/params"
 
 const userPublicSelect = {
   id: true,
@@ -15,8 +17,11 @@ const userPublicSelect = {
   updatedAt: true,
 }
 
+const SALT_ROUNDS = 10
+
 class UsersController {
   async create(request: Request, response: Response) {
+    // 1) Validação do body
     const bodySchema = z.object({
       name: z.string().min(2, "O nome precisa ter pelo menos 2 caracteres"),
       email: z.email("Email inválido"),
@@ -30,94 +35,128 @@ class UsersController {
 
     const { name, email, password, role } = bodySchema.parse(request.body)
 
+    // 2) Normaliza o email para evitar duplicidade (maiúsculas/minúsculas)
+    const emailNormalized = email.toLowerCase()
+
+    // 3) Verifica se já existe usuário com esse email
     const userWithSameEmail = await prisma.user.findUnique({
-      where: { email },
+      where: { email: emailNormalized },
     })
 
     if (userWithSameEmail) {
       throw new AppError("Já existe um usuário com esse email", 409)
     }
 
-    const hashedPassword = await hash(password, 8)
+    // 4) Criptografa a senha antes de salvar
+    const hashedPassword = await hash(password, SALT_ROUNDS)
 
+    // 5) Cria o usuário no banco
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, role },
+      data: {
+        name,
+        email: emailNormalized,
+        password: hashedPassword,
+        role,
+      },
+      // 6) Retorna apenas dados públicos (não retorna password)
       select: userPublicSelect,
     })
 
-    response.json({ user })
+    // 7) Retorna o usuário criado
+    return response.json({ user })
   }
 
   async list(request: Request, response: Response) {
+    // 1) Garante que o usuário está autenticado (helper)
+    const authUser = requireAuth(request.user)
+
+    // 2) Se for manager, lista todos
+    //    Se não for, lista apenas o próprio usuário
     const users = await prisma.user.findMany({
+      where:
+        authUser.role === UserRole.manager ? undefined : { id: authUser.id },
+
+      // 3) Retorna apenas dados públicos
       select: userPublicSelect,
     })
 
-    response.json(users)
+    // 4) Retorna a lista
+    return response.json(users)
   }
 
   async show(request: Request, response: Response) {
-    const paramsSchema = z.object({
-      id: z.uuid("ID inválido"),
-    })
+    // 1) Garante que o usuário está autenticado (helper)
+    const authUser = requireAuth(request.user)
 
-    const { id: userId } = paramsSchema.parse(request.params)
+    // 2) Valida o ID vindo na rota
+    const userId = parseParamId(request.params)
 
-    const user = await prisma.user.findUnique({
+    // 3) Permissão: manager pode ver qualquer usuário, comum só pode ver ele mesmo (helper)
+    requireSelfOrManager(authUser, userId)
+
+    // 4) Busca o usuário no banco
+    const userShow = await prisma.user.findUnique({
       where: { id: userId },
+      // 5) Retorna apenas dados públicos
       select: userPublicSelect,
     })
 
-    if (user) {
-      return response.json(user)
+    // 6) Se não existir, retorna erro
+    if (!userShow) {
+      throw new AppError("Usuário não encontrado", 404)
     }
-    throw new AppError("Usuário não encontrado", 404)
-  }
 
-  async remove(request: Request, response: Response) {
-    const paramsSchema = z.object({
-      id: z.uuid("ID inválido"),
-    })
-
-    const { id: userId } = paramsSchema.parse(request.params)
-
-    await prisma.user.delete({
-      where: { id: userId },
-    })
-
-    response.sendStatus(204)
+    // 7) Retorna o usuário encontrado
+    return response.json(userShow)
   }
 
   async update(request: Request, response: Response) {
-    const paramsSchema = z.object({
-      id: z.uuid("ID inválido"),
-    })
+    // 1) Valida o ID vindo na rota
+    const userId = parseParamId(request.params)
 
-    const bodySchema = z.object({
-      name: z.string().min(2).optional(),
-      email: z.email().optional(),
-      password: z.string().min(6).optional(),
-      role: z
-        .enum(Object.values(UserRole) as [UserRole, ...UserRole[]])
-        .optional(),
-    })
+    // 2) Validação do body (parcial)
+    const roles = Object.values(UserRole) as [UserRole, ...UserRole[]]
 
-    const { id: userId } = paramsSchema.parse(request.params)
-    const { name, email, password, role } = bodySchema.parse(request.body)
+    const bodySchema = z
+      .object({
+        name: z.string().min(2, "O nome precisa ter pelo menos 2 caracteres"),
+        email: z.email("Digite um email válido"),
+        password: z
+          .string()
+          .min(6, "A senha precisa ter pelo menos 6 caracteres"),
+        role: z.enum(roles),
+      })
+      .partial()
 
-    // 1️⃣ Verifica se o usuário existe
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    })
+    const body = bodySchema.parse(request.body)
 
+    // 3) Garante que o usuário está autenticado (helper)
+    const authUser = requireAuth(request.user)
+
+    // 4) Permissão: manager pode editar qualquer usuário, comum só pode editar ele mesmo (helper)
+    requireSelfOrManager(authUser, userId)
+
+    // 5) Se body veio vazio, já responde
+    if (Object.keys(body).length === 0) {
+      return response.status(200).json({ message: "Nenhuma alteração enviada" })
+    }
+
+    // 6) Busca usuário alvo
+    const user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
       throw new AppError("Usuário não encontrado", 404)
     }
 
-    // 2️⃣ Se email mudou, valida duplicidade (ignorando ele mesmo)
-    if (email && email !== user.email) {
+    // 7) Usuário comum não pode alterar role
+    const isManager = authUser.role === UserRole.manager
+    if (!isManager && body.role !== undefined) {
+      throw new AppError("Somente manager pode alterar o cargo", 403)
+    }
+
+    // 8) Se mudou email, valida se já existe
+    if (body.email !== undefined && body.email !== user.email) {
       const emailInUse = await prisma.user.findUnique({
-        where: { email },
+        where: { email: body.email.toLowerCase() },
       })
 
       if (emailInUse) {
@@ -125,22 +164,46 @@ class UsersController {
       }
     }
 
-    // 3️⃣ Monta dados SOMENTE do que mudou
-    const data: any = {}
+    // 9) Monta o objeto "data" SOMENTE com o que realmente mudou
+    const data: {
+      name?: string
+      email?: string
+      role?: UserRole
+      password?: string
+    } = {}
 
-    if (name && name !== user.name) data.name = name
-    if (email && email !== user.email) data.email = email
-    if (role && role !== user.role) data.role = role
-    if (password && password !== user.password) data.password = password
+    if (body.name !== undefined && body.name !== user.name) {
+      data.name = body.name
+    }
 
-    // 4️⃣ Se nada mudou, não atualiza no banco
+    // Normaliza o email antes de comparar/salvar
+    if (body.email !== undefined) {
+      const emailNormalized = body.email.toLowerCase()
+      if (emailNormalized !== user.email) {
+        data.email = emailNormalized
+      }
+    }
+
+    if (body.role !== undefined && body.role !== user.role) {
+      data.role = body.role
+    }
+
+    // 10) Password: só atualiza se for diferente do hash atual
+    if (body.password !== undefined) {
+      const samePassword = await compare(body.password, user.password)
+      if (!samePassword) {
+        data.password = await hash(body.password, SALT_ROUNDS)
+      }
+    }
+
+    // 11) Se no final não tiver nada pra mudar, não chama update
     if (Object.keys(data).length === 0) {
       return response
         .status(200)
         .json({ message: "Nenhuma alteração detectada" })
     }
 
-    // 5️⃣ Atualiza
+    // 12) Atualiza e retorna público
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data,
@@ -148,6 +211,45 @@ class UsersController {
     })
 
     return response.json(updatedUser)
+  }
+
+  async remove(request: Request, response: Response) {
+    // 1) Valida o ID vindo na rota
+    const userId = parseParamId(request.params)
+
+    // 2) Garante que o usuário está autenticado (helper)
+    const authUser = requireAuth(request.user)
+
+    // 3) Permissão: manager pode deletar qualquer usuário, comum só pode deletar ele mesmo (helper)
+    requireSelfOrManager(authUser, userId)
+
+    // 4) Verifica se o usuário existe
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+    })
+
+    if (!userExists) {
+      throw new AppError("Usuário não encontrado", 404)
+    }
+
+    // 5) Verifica se existem reembolsos vinculados
+    const refundsCount = await prisma.refunds.count({
+      where: { userId },
+    })
+
+    if (refundsCount > 0) {
+      throw new AppError(
+        "Não é possível deletar um usuário com reembolsos cadastrados",
+        400
+      )
+    }
+
+    // 6) Deleta o usuário
+    await prisma.user.delete({
+      where: { id: userId },
+    })
+
+    return response.sendStatus(204)
   }
 }
 

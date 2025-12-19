@@ -4,7 +4,6 @@ import { verify } from "jsonwebtoken"
 
 import { authConfig } from "@/configs/auth"
 import { AppError } from "@/utils/AppError"
-import th from "zod/v4/locales/th.js"
 
 interface TokenPayLoad {
   role: string

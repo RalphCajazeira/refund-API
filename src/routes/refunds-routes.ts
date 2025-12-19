@@ -12,9 +12,25 @@ refundsRoutes.post(
   verifyUserAuthorization([UserRole.employee]),
   refundsController.create
 )
-refundsRoutes.get("/", refundsController.list)
-refundsRoutes.get("/:id", refundsController.show)
-refundsRoutes.put("/:id", refundsController.update)
-refundsRoutes.delete("/:id", refundsController.remove)
+refundsRoutes.get(
+  "/",
+  verifyUserAuthorization([UserRole.employee, UserRole.manager]),
+  refundsController.list
+)
+refundsRoutes.get(
+  "/:id",
+  verifyUserAuthorization([UserRole.employee, UserRole.manager]),
+  refundsController.show
+)
+refundsRoutes.put(
+  "/:id",
+  verifyUserAuthorization([UserRole.employee]),
+  refundsController.update
+)
+refundsRoutes.delete(
+  "/:id",
+  verifyUserAuthorization([UserRole.employee]),
+  refundsController.remove
+)
 
 export { refundsRoutes }

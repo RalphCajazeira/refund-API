@@ -1,7 +1,7 @@
 import type { Request, Response } from "express"
 
 import { Category, UserRole } from "@prisma/client"
-import { AppError } from "@/utils/AppError"
+import { requireAuth } from "@/utils/auth"
 import { prisma } from "@/database/prisma"
 import { z } from "zod"
 
@@ -14,13 +14,9 @@ class RefundsController {
       filename: z.string(),
     })
 
-    const userId = request.user?.id
-
     const { name, amount, category, filename } = bodySchema.parse(request.body)
 
-    if (!userId) {
-      throw new AppError("Usuário nao encontrado", 404)
-    }
+    const userId = requireAuth(request.user).id
 
     const refund = await prisma.refunds.create({
       data: {
@@ -32,17 +28,20 @@ class RefundsController {
       },
     })
 
-    response.json(refund)
+    return response.json(refund)
   }
 
   async list(request: Request, response: Response) {
-    const { user } = request
+    const authUser = requireAuth(request.user)
 
     const refunds = await prisma.refunds.findMany({
-      where: user?.role === UserRole.manager ? undefined : { userId: user?.id },
+      where:
+        authUser.role === UserRole.manager
+          ? undefined
+          : { userId: authUser.id },
     })
 
-    response.json(refunds)
+    return response.json(refunds)
   }
 
   async show(request: Request, response: Response) {

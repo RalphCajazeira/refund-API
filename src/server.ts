@@ -1,5 +1,5 @@
-import { app } from "@/app"
 import "dotenv/config" // Por segurança, atualmente meu tsx ja inclui essa importação globalmente
+import { app } from "@/app"
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET não definido")

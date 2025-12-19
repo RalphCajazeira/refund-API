@@ -1,9 +1,9 @@
 import { Router } from "express"
 
-import { UsersController } from "@/controllers/users-controller"
-import { ensureAuthenticated } from "@/middlewares/ensure-authenticated"
-import { UserRole } from "@prisma/client"
 import { verifyUserAuthorization } from "@/middlewares/verify-user-authorization"
+import { ensureAuthenticated } from "@/middlewares/ensure-authenticated"
+import { UsersController } from "@/controllers/users-controller"
+import { UserRole } from "@prisma/client"
 
 const usersRoutes = Router()
 const usersController = new UsersController()

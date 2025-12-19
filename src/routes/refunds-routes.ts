@@ -1,7 +1,7 @@
 import { Router } from "express"
 
-import { RefundsController } from "@/controllers/refunds-controller"
 import { verifyUserAuthorization } from "@/middlewares/verify-user-authorization"
+import { RefundsController } from "@/controllers/refunds-controller"
 import { UserRole } from "@prisma/client"
 
 const refundsRoutes = Router()

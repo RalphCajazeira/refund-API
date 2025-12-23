@@ -33,19 +33,51 @@ class RefundsController {
         filename,
         userId,
       },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
     })
 
-    return response.json(refund)
+    return response.status(201).json(refund)
   }
 
   async list(request: Request, response: Response) {
+    // 1) Garante que o usuário está autenticado
     const authUser = requireAuth(request.user)
 
+    // 2) Valida query
+    const querySchema = z.object({
+      name: z.string().optional().default(""),
+    })
+
+    const { name } = querySchema.parse(request.query)
+    const nameTrimmed = name.trim()
+
+    // 3) Consulta com filtros usando spread (...)
     const refunds = await prisma.refunds.findMany({
-      where:
-        authUser.role === UserRole.manager
-          ? undefined
-          : { userId: authUser.id },
+      where: {
+        // Se não for manager, limita ao próprio usuário
+        ...(authUser.role !== UserRole.manager && {
+          userId: authUser.id,
+        }),
+
+        // Se veio name (não vazio), filtra por nome
+        ...(nameTrimmed !== "" && {
+          user: {
+            name: {
+              contains: nameTrimmed,
+            },
+          },
+        }),
+      },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
+      orderBy: { createdAt: "asc" },
     })
 
     return response.json(refunds)

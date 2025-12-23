@@ -77,7 +77,7 @@ class RefundsController {
           select: { name: true, email: true },
         },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
     })
 
     return response.json(refunds)

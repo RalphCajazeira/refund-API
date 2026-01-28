@@ -43,20 +43,28 @@ class RefundsController {
     return response.status(201).json(refund)
   }
 
-  async list(request: Request, response: Response) {
+  async index(request: Request, response: Response) {
     // 1) Garante que o usuário está autenticado
     const authUser = requireAuth(request.user)
 
     // 2) Valida query
     const querySchema = z.object({
       name: z.string().optional().default(""),
+      page: z.coerce.number().optional().default(1),
+      perPage: z.coerce.number().optional().default(3),
     })
 
-    const { name } = querySchema.parse(request.query)
+    // 2.1) Valida query
+    const { name, page, perPage } = querySchema.parse(request.query)
     const nameTrimmed = name.trim()
 
-    // 3) Consulta com filtros usando spread (...)
+    // 3) Calcula o skip
+    const skip = (page - 1) * perPage
+
+    // 4) Consulta com filtros usando spread (...)
     const refunds = await prisma.refunds.findMany({
+      skip,
+      take: perPage,
       where: {
         // Se não for manager, limita ao próprio usuário
         ...(authUser.role !== UserRole.manager && {
@@ -80,7 +88,37 @@ class RefundsController {
       orderBy: { createdAt: "desc" },
     })
 
-    return response.json(refunds)
+    const totalRecords = await prisma.refunds.count({
+      where: {
+        // Se não for manager, limita ao próprio usuário
+        ...(authUser.role !== UserRole.manager && {
+          userId: authUser.id,
+        }),
+
+        // Se veio name (não vazio), filtra por nome
+        ...(nameTrimmed !== "" && {
+          user: {
+            name: {
+              contains: nameTrimmed,
+            },
+          },
+        }),
+      },
+    })
+
+    // 5) Calcula total de páginas
+    const totalPages = Math.ceil(totalRecords / perPage)
+
+    // 6) Retorna a lista de refunds com metadados de paginação
+    return response.json({
+      refunds,
+      pagination: {
+        page,
+        perPage,
+        totalRecords,
+        totalPages: totalPages > 0 ? totalPages : 1,
+      },
+    })
   }
 
   async show(request: Request, response: Response) {

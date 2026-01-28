@@ -15,22 +15,22 @@ usersRoutes.use(ensureAuthenticated)
 usersRoutes.get(
   "/",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  usersController.list
+  usersController.index,
 )
 usersRoutes.get(
   "/:id",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  usersController.show
+  usersController.show,
 )
-usersRoutes.put(
+usersRoutes.patch(
   "/:id",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  usersController.update
+  usersController.update,
 )
 usersRoutes.delete(
   "/:id",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  usersController.remove
+  usersController.remove,
 )
 
 export { usersRoutes }

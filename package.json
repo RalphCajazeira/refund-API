@@ -4,7 +4,7 @@
   "description": "API de solicitações de reembolso",
   "main": "src/server.ts",
   "scripts": {
-    "dev": "tsx watch src/server.ts"
+    "dev": "node --watch --watch-path src --watch-path .env --import tsx src/server.ts"
   },
   "author": "RalphMTK",
   "license": "ISC",

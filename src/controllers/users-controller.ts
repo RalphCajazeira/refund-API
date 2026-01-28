@@ -66,7 +66,7 @@ class UsersController {
     return response.json({ user })
   }
 
-  async list(request: Request, response: Response) {
+  async index(request: Request, response: Response) {
     // 1) Garante que o usuário está autenticado (helper)
     const authUser = requireAuth(request.user)
 

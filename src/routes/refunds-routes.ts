@@ -10,27 +10,27 @@ const refundsController = new RefundsController()
 refundsRoutes.post(
   "/",
   verifyUserAuthorization([UserRole.employee]),
-  refundsController.create
+  refundsController.create,
 )
 refundsRoutes.get(
   "/",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  refundsController.list
+  refundsController.index,
 )
 refundsRoutes.get(
   "/:id",
   verifyUserAuthorization([UserRole.employee, UserRole.manager]),
-  refundsController.show
+  refundsController.show,
 )
-refundsRoutes.put(
+refundsRoutes.patch(
   "/:id",
   verifyUserAuthorization([UserRole.employee]),
-  refundsController.update
+  refundsController.update,
 )
 refundsRoutes.delete(
   "/:id",
   verifyUserAuthorization([UserRole.employee]),
-  refundsController.remove
+  refundsController.remove,
 )
 
 export { refundsRoutes }

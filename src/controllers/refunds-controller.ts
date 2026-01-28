@@ -131,6 +131,11 @@ class RefundsController {
     // 3) Busca o refund no banco
     const refund = await prisma.refunds.findUnique({
       where: { id: refundId },
+      include: {
+        user: {
+          select: { name: true, email: true },
+        },
+      },
     })
 
     // 4) Se não existir, retorna 404
